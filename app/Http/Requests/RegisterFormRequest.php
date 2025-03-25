@@ -32,7 +32,7 @@ class RegisterFormRequest extends FormRequest
             'password' => ['required', 'string', 'min:8', 'confirmed'], // password_confirmation field required
             'promocode' => ['nullable', 'string', 'max:50', 'exists:users,promocode'], // Validate promocode if provided
             'role' => ['nullable', Rule::in(['user_client', 'admin', 'super_admin'])], // Optional, defaults to user_client
-            'usdt_wallet' => ['required', 'string', 'max:255'], // Add custom validation for USDT wallet format if needed
+            'usdt_wallet' => ['nullable', 'string', 'max:255'], // Add custom validation for USDT wallet format if needed
         ];
     }
 

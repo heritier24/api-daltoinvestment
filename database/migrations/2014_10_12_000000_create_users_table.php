@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('password');
             $table->string('promocode')->unique()->nullable();
             $table->enum('role', ['user_client', 'admin', 'super_admin'])->default('user_client');
-            $table->string('usdt_wallet');
+            $table->string('usdt_wallet')->nullable();
             $table->unsignedBigInteger('referred_by')->nullable();
             $table->foreign('referred_by')->references('id')->on('users')->onDelete('set null');
             $table->rememberToken();
