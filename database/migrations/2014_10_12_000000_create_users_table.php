@@ -19,7 +19,7 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('phone_number')->unique();
             $table->string('password');
-            $table->string('promocode')->unique();
+            $table->string('promocode')->unique()->nullable();
             $table->enum('role', ['user_client', 'admin', 'super_admin'])->default('user_client');
             $table->string('usdt_wallet');
             $table->unsignedBigInteger('referred_by')->nullable();
