@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+
+use App\Models\CompanyWallet;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -12,11 +14,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
+        // Seed company wallets for each network
+        $wallets = [
+            ['network' => 'BSC', 'address' => 'BSC9876zyxw5432vuts1098'],
+            ['network' => 'TRC20', 'address' => 'TRC20klmn5678opqr9012abcd'],
+        ];
 
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        foreach ($wallets as $wallet) {
+            CompanyWallet::create($wallet);
+        }
     }
 }
