@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\DepositController;
 use Illuminate\Http\Request;
@@ -29,6 +30,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/transactions', [DepositController::class, 'getUserTransactions']);
     Route::put('/deposits/{id}/reference', [DepositController::class, 'updateReferenceNumber']);
     Route::get('/total-completed-deposits', [DepositController::class, 'getTotalCompletedDeposits']);
+
+    // Admin routes
+    Route::prefix('admin')->group(function () {
+        Route::get('summary', [AdminController::class, 'summary']);
+        Route::get('transactions', [AdminController::class, 'transactions']);
+        Route::get('withdrawals/pending', [AdminController::class, 'pendingWithdrawals']);
+    });
 });
 
 Route::post('/register', [AuthenticationController::class, 'register']);
