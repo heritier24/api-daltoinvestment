@@ -16,10 +16,18 @@ use Illuminate\Support\Facades\Route;
 |
  */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+Route::middleware('auth:sanctum')->group(function () {
+    // Route to get the authenticated user
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
 
+    // Routes for company wallets and deposits
     Route::get('/company-wallets', [DepositController::class, 'getCompanyWallet']);
+    Route::get('/company-wallets/networks', [DepositController::class, 'getNetworks']);
     Route::post('/deposits', [DepositController::class, 'createDeposit']);
+    Route::get('/transactions', [DepositController::class, 'getUserTransactions']);
+    Route::put('/deposits/{id}/reference', [DepositController::class, 'updateReferenceNumber']);
 });
 
 Route::post('/register', [AuthenticationController::class, 'register']);

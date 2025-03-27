@@ -38,7 +38,7 @@ class AuthenticationController extends Controller
                 'user' => $user,
                 'token' => $token,
             ],
-        ], 200);
+        ], 201);
     }
 
     public function register(RegisterFormRequest $request): JsonResponse
