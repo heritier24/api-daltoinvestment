@@ -129,4 +129,18 @@ class DepositController extends Controller
             ],
         ], 200);
     }
+
+    public function getTotalCompletedDeposits(Request $request)
+    {
+        $total = Deposit::where('user_id', Auth::id())
+            ->where('status', 'completed')
+            ->sum('amount');
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'total_completed_deposits' => number_format($total, 2, '.', ''),
+            ],
+        ], 200);
+    }
 }

@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/deposits', [DepositController::class, 'createDeposit']);
     Route::get('/transactions', [DepositController::class, 'getUserTransactions']);
     Route::put('/deposits/{id}/reference', [DepositController::class, 'updateReferenceNumber']);
+    Route::get('/total-completed-deposits', [DepositController::class, 'getTotalCompletedDeposits']);
 });
 
 Route::post('/register', [AuthenticationController::class, 'register']);
