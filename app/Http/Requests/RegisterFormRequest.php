@@ -29,9 +29,10 @@ class RegisterFormRequest extends FormRequest
             'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'phone_number' => ['required', 'string', 'max:12', 'unique:users'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'], // password_confirmation field required
+            'password' => ['required', 'string', 'min:8'], // password_confirmation field required
             'promocode' => ['nullable', 'string', 'max:50', 'exists:users,promocode'], // Validate promocode if provided
             'role' => ['nullable', Rule::in(['user_client', 'admin', 'super_admin'])], // Optional, defaults to user_client
+            'networkaddress' => 'required|string|max:255',
             'usdt_wallet' => ['nullable', 'string', 'max:255'], // Add custom validation for USDT wallet format if needed
         ];
     }
