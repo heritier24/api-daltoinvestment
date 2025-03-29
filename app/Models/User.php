@@ -27,6 +27,7 @@ class User extends Authenticatable
         'password',
         'promocode',
         'role',
+        'networkaddress',
         'usdt_wallet',
         'referred_by',
     ];
