@@ -61,6 +61,7 @@ class AuthenticationController extends Controller
             'password' => Hash::make($validated['password']),
             'promocode' => 'REF_' . Str::random(8), // Generate a unique promocode for the new user
             'role' => $validated['role'] ?? 'user_client', // Default to user_client
+            'networkaddress' => $validated['networkaddress'],
             'usdt_wallet' => $validated['usdt_wallet'],
             'referred_by' => $referrer ? $referrer->id : null,
         ]);
@@ -78,5 +79,82 @@ class AuthenticationController extends Controller
                 'referral_link' => url('/register?ref=' . $user->promocode),
             ],
         ], 201);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully',
+        ]);
+    }
+
+    public function user(Request $request)
+    {
+        $user = $request->user();
+        return response()->json([
+            'data' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone_number' => $user->phone_number,
+                'role' => $user->role,
+                'network' => $user->network,
+                'networkaddress' => $user->networkaddress,
+                'promocode' => $user->promocode,
+            ],
+        ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'phone_number' => 'required|string|max:20',
+            'network' => 'required|in:TRON,Ethereum,Binance Smart Chain',
+            'networkaddress' => 'required|string|max:255',
+        ]);
+
+        $user->update([
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'email' => $validated['email'],
+            'phone_number' => $validated['phone_number'],
+            'network' => $validated['network'],
+            'networkaddress' => $validated['networkaddress'],
+        ]);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'data' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone_number' => $user->phone_number,
+                'role' => $user->role,
+                'network' => $user->network,
+                'networkaddress' => $user->networkaddress,
+                'promocode' => $user->promocode,
+            ],
+        ]);
+    }
+
+    public function totalCompletedDeposits(Request $request)
+    {
+        $user = $request->user();
+        $total = $user->deposits()->where('status', 'completed')->sum('amount');
+
+        return response()->json([
+            'data' => [
+                'total_completed_deposits' => number_format($total, 2, '.', ''),
+            ],
+        ]);
     }
 }
