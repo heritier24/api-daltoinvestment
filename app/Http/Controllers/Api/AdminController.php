@@ -12,7 +12,7 @@ class AdminController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth:api');
+        // $this->middleware('auth:api');
         $this->middleware('role:admin');
     }
 
@@ -21,7 +21,7 @@ class AdminController extends Controller
         $totalDeposits = Deposit::sum('amount');
         $totalCompletedDeposits = Deposit::where('status', 'completed')->sum('amount');
         $totalPendingDeposits = Deposit::where('status', 'pending')->sum('amount');
-        $totalRewarded = 5000.00; // Placeholder (implement this logic later)
+        $totalRewarded = 0.00; // Placeholder (implement this logic later)
 
         return response()->json([
             'data' => [
@@ -75,6 +75,111 @@ class AdminController extends Controller
         return response()->json([
             'data' => [
                 'total_pending_withdrawals' => number_format($totalPendingWithdrawals, 2, '.', ''),
+            ],
+        ]);
+    }
+
+    // New endpoint to fetch pending deposit requests
+    public function pendingDepositRequests(Request $request)
+    {
+        $perPage = $request->query('limit', 10);
+        $page = $request->query('page', 1);
+
+        $pendingDeposits = Deposit::with('user')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'transactions' => $pendingDeposits->map(function ($deposit) {
+                    return [
+                        'id' => $deposit->id,
+                        'date' => $deposit->created_at->format('Y-m-d'),
+                        'reference_number' => $deposit->reference_number,
+                        'network' => $deposit->network,
+                        'status' => $deposit->status,
+                        'amount' => number_format($deposit->amount, 2, '.', ''),
+                        'type' => 'deposit',
+                        'user' => [
+                            'first_name' => $deposit->user->first_name,
+                            'last_name' => $deposit->user->last_name,
+                        ],
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $pendingDeposits->currentPage(),
+                    'total_pages' => $pendingDeposits->lastPage(),
+                    'total_items' => $pendingDeposits->total(),
+                    'limit' => $pendingDeposits->perPage(),
+                ],
+            ],
+        ]);
+    }
+
+    // New endpoint to fetch pending withdrawal requests
+    public function pendingWithdrawalRequests(Request $request)
+    {
+        $perPage = $request->query('limit', 10);
+        $page = $request->query('page', 1);
+
+        $pendingWithdrawals = Withdrawal::with('user')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'transactions' => $pendingWithdrawals->map(function ($withdrawal) {
+                    return [
+                        'id' => $withdrawal->id,
+                        'date' => $withdrawal->created_at->format('Y-m-d'),
+                        'reference_number' => 'N/A', // Withdrawals may not have a reference number
+                        'network' => $withdrawal->network,
+                        'status' => $withdrawal->status,
+                        'amount' => number_format($withdrawal->amount, 2, '.', ''),
+                        'type' => 'withdrawal',
+                        'user' => [
+                            'first_name' => $withdrawal->user->first_name,
+                            'last_name' => $withdrawal->user->last_name,
+                        ],
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $pendingWithdrawals->currentPage(),
+                    'total_pages' => $pendingWithdrawals->lastPage(),
+                    'total_items' => $pendingWithdrawals->total(),
+                    'limit' => $pendingWithdrawals->perPage(),
+                ],
+            ],
+        ]);
+    }
+
+    // New endpoint to update a transaction's status
+    public function updateTransactionStatus(Request $request, $id)
+    {
+        $request->validate([
+            'type' => 'required|in:deposit,withdrawal',
+            'status' => 'required|in:completed,failed',
+        ]);
+
+        $type = $request->input('type');
+        $status = $request->input('status');
+
+        if ($type === 'deposit') {
+            $transaction = Deposit::findOrFail($id);
+        } else {
+            $transaction = Withdrawal::findOrFail($id);
+        }
+
+        $transaction->status = $status;
+        $transaction->save();
+
+        return response()->json([
+            'message' => 'Transaction status updated successfully.',
+            'data' => [
+                'id' => $transaction->id,
+                'status' => $transaction->status,
             ],
         ]);
     }

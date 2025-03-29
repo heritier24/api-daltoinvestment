@@ -36,6 +36,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('summary', [AdminController::class, 'summary']);
         Route::get('transactions', [AdminController::class, 'transactions']);
         Route::get('withdrawals/pending', [AdminController::class, 'pendingWithdrawals']);
+        Route::get('deposits/pending', [AdminController::class, 'pendingDepositRequests']);
+        Route::get('withdrawals/pending-requests', [AdminController::class, 'pendingWithdrawalRequests']);
+        Route::patch('transactions/{id}/status', [AdminController::class, 'updateTransactionStatus']);
     });
 });
 
