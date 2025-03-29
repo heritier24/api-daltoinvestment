@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\DepositController;
+use App\Http\Controllers\WithdrawController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +24,10 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    Route::get('user', [AuthenticationController::class, 'user']);
+    Route::post('logout', [AuthenticationController::class, 'logout']);
+    Route::put('profile', [AuthenticationController::class, 'updateProfile']);
+
     // Routes for company wallets and deposits
     Route::get('/company-wallets', [DepositController::class, 'getCompanyWallet']);
     Route::get('/company-wallets/networks', [DepositController::class, 'getNetworks']);
@@ -30,6 +35,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/transactions', [DepositController::class, 'getUserTransactions']);
     Route::put('/deposits/{id}/reference', [DepositController::class, 'updateReferenceNumber']);
     Route::get('/total-completed-deposits', [DepositController::class, 'getTotalCompletedDeposits']);
+    Route::get('withdrawals', [WithdrawController::class, 'withdrawals']);
+    
 
     // Admin routes
     Route::prefix('admin')->group(function () {
@@ -39,6 +46,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('deposits/pending', [AdminController::class, 'pendingDepositRequests']);
         Route::get('withdrawals/pending-requests', [AdminController::class, 'pendingWithdrawalRequests']);
         Route::patch('transactions/{id}/status', [AdminController::class, 'updateTransactionStatus']);
+        Route::get('member-deposits', [AdminController::class, 'memberDeposits']);
+        Route::post('record-withdrawal', [AdminController::class, 'recordWithdrawal']);
+        Route::post('generate-interest', [AdminController::class, 'generateInterest']);
     });
 });
 
