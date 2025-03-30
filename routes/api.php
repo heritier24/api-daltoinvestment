@@ -56,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('company-interests', [AdminController::class, 'createCompanyInterest']);
         Route::put('company-interests/{id}', [AdminController::class, 'updateCompanyInterest']);
         Route::delete('company-interests/{id}', [AdminController::class, 'deleteCompanyInterest']);
+        Route::get('daily-rois', [AdminController::class, 'dailyROIs']);
     });
 });
 

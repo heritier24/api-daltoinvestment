@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyInterest;
 use App\Models\CompanyWallet;
+use App\Models\DailyROI;
 use App\Models\Deposit;
 use App\Models\Interest;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Withdrawal;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class AdminController extends Controller
 {
@@ -512,6 +515,111 @@ class AdminController extends Controller
 
         return response()->json([
             'message' => 'Company interest deleted successfully.',
+        ]);
+    }
+
+    public function calculateDailyROI()
+    {
+        // Skip if today is Saturday (6) or Sunday (0)
+        if (Carbon::today()->dayOfWeek === Carbon::SATURDAY || Carbon::today()->dayOfWeek === Carbon::SUNDAY) {
+            Log::info('Skipping ROI calculation: Today is a weekend.');
+            return;
+        }
+
+        // Fetch the active daily investment interest rate
+        $interest = CompanyInterest::where('type', 'daily_investment')
+            ->where('status', 'active')
+            ->first();
+
+        if (!$interest) {
+            Log::warning('No active daily investment interest rate found.');
+            return;
+        }
+
+        $dailyInterestRate = $interest->percentage / 100; // e.g., 1.5% -> 0.015
+        $today = Carbon::today()->toDateString();
+
+        // Fetch all completed deposits
+        $deposits = Deposit::where('status', 'completed')->get();
+
+        foreach ($deposits as $deposit) {
+            // Check if ROI for this deposit has already been calculated today
+            $existingROI = DailyROI::where('deposit_id', $deposit->id)
+                ->where('date', $today)
+                ->exists();
+
+            if ($existingROI) {
+                Log::info("ROI already calculated for deposit ID {$deposit->id} on {$today}.");
+                continue;
+            }
+
+            // Calculate the daily ROI
+            $dailyROI = $deposit->amount * $dailyInterestRate;
+
+            // Record the daily ROI
+            DailyROI::create([
+                'user_id' => $deposit->user_id,
+                'deposit_id' => $deposit->id,
+                'amount' => $dailyROI,
+                'date' => $today,
+            ]);
+
+            // Optionally, add the ROI to the user's wallet balance
+            $user = $deposit->user;
+            $user->wallet_balance += $dailyROI;
+            $user->save();
+
+            Log::info("Recorded daily ROI of {$dailyROI} for deposit ID {$deposit->id} on {$today}.");
+        }
+    }
+
+    public function dailyROIs(Request $request)
+    {
+        $perPage = $request->query('limit', 10);
+        $page = $request->query('page', 1);
+        $search = $request->query('search', '');
+
+        $user = auth()->user();
+        $query = DailyROI::with(['user', 'deposit'])->orderBy('date', 'desc');
+
+        // If the user is not an admin, restrict to their own ROIs
+        if ($user->role !== 'admin') {
+            $query->where('user_id', $user->id);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('amount', 'like', "%{$search}%")
+                  ->orWhere('date', 'like', "%{$search}%")
+                  ->orWhereHas('user', function ($q) use ($search) {
+                      $q->where('email', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $rois = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'rois' => $rois->map(function ($roi) {
+                    return [
+                        'id' => $roi->id,
+                        'user_id' => $roi->user_id,
+                        'user_email' => $roi->user ? $roi->user->email : 'N/A',
+                        'deposit_id' => $roi->deposit_id,
+                        'deposit_amount' => $roi->deposit ? number_format($roi->deposit->amount, 2, '.', '') : 'N/A',
+                        'amount' => number_format($roi->amount, 2, '.', ''),
+                        'date' => $roi->date,
+                        'created_at' => $roi->created_at->format('d/m/Y H:i:s'),
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $rois->currentPage(),
+                    'total_pages' => $rois->lastPage(),
+                    'total_items' => $rois->total(),
+                    'limit' => $rois->perPage(),
+                ],
+            ],
         ]);
     }
 }
