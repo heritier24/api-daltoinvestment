@@ -49,6 +49,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('member-deposits', [AdminController::class, 'memberDeposits']);
         Route::post('record-withdrawal', [AdminController::class, 'recordWithdrawal']);
         Route::post('generate-interest', [AdminController::class, 'generateInterest']);
+        Route::get('company-wallets', [AdminController::class, 'companyWallets']);
+        Route::put('company-wallets/{id}', [AdminController::class, 'updateCompanyWallet']);
+        Route::post('company-wallets', [AdminController::class, 'createCompanyWallet']);
     });
 });
 

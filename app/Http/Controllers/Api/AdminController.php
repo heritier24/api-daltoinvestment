@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CompanyWallet;
 use App\Models\Deposit;
 use App\Models\Interest;
 use App\Models\Transaction;
@@ -326,5 +327,89 @@ class AdminController extends Controller
             'message' => 'Interest generated successfully for all eligible members.',
             'data' => $interestRecords,
         ]);
+    }
+
+    public function companyWallets(Request $request)
+    {
+        $perPage = $request->query('limit', 5);
+        $page = $request->query('page', 1);
+        $search = $request->query('search', '');
+
+        $query = CompanyWallet::orderBy('created_at', 'desc');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('network', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%");
+            });
+        }
+
+        $wallets = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'wallets' => $wallets->map(function ($wallet) {
+                    return [
+                        'id' => $wallet->id,
+                        'network' => $wallet->network,
+                        'address' => $wallet->address,
+                        'created_at' => $wallet->created_at->format('d/m/Y H:i:s'),
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $wallets->currentPage(),
+                    'total_pages' => $wallets->lastPage(),
+                    'total_items' => $wallets->total(),
+                    'limit' => $wallets->perPage(),
+                ],
+            ],
+        ]);
+    }
+
+    public function updateCompanyWallet(Request $request, $id)
+    {
+        $request->validate([
+            'network' => 'required',
+            'address' => 'required|string|max:255',
+        ]);
+
+        $wallet = CompanyWallet::findOrFail($id);
+        $wallet->update([
+            'network' => $request->network,
+            'address' => $request->address,
+        ]);
+
+        return response()->json([
+            'message' => 'Company wallet updated successfully.',
+            'data' => [
+                'id' => $wallet->id,
+                'network' => $wallet->network,
+                'address' => $wallet->address,
+                'created_at' => $wallet->created_at->format('d/m/Y H:i:s'),
+            ],
+        ]);
+    }
+
+    public function createCompanyWallet(Request $request)
+    {
+        $request->validate([
+            'network' => 'required',
+            'address' => 'required|string|max:255',
+        ]);
+
+        $wallet = CompanyWallet::create([
+            'network' => $request->network,
+            'address' => $request->address,
+        ]);
+
+        return response()->json([
+            'message' => 'Company wallet created successfully.',
+            'data' => [
+                'id' => $wallet->id,
+                'network' => $wallet->network,
+                'address' => $wallet->address,
+                'created_at' => $wallet->created_at->format('d/m/Y H:i:s'),
+            ],
+        ], 201);
     }
 }
