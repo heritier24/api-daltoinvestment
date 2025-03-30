@@ -164,26 +164,29 @@ class AdminController extends Controller
     public function updateTransactionStatus(Request $request, $id)
     {
         $request->validate([
-            'type' => 'required|in:deposit,withdrawal',
-            'status' => 'required|in:pending,completed,failed',
+            'status' => 'required|in:completed,failed,pending', // Allow 'pending' as well
         ]);
 
-        $type = $request->input('type');
-        $status = $request->input('status');
+        $transaction = Transaction::findOrFail($id);
+        $transaction->update([
+            'status' => $request->status,
+        ]);
 
-        if ($type === 'deposit') {
-            $transaction = Deposit::findOrFail($id);
-        } else {
-            $transaction = Withdrawal::findOrFail($id);
+        if ($transaction->type === 'deposit') {
+            $deposit = Deposit::where('transaction_id', $transaction->id)->first();
+            if ($deposit) {
+                $deposit->update(['status' => $request->status]);
+            }
+        } elseif ($transaction->type === 'withdrawal') {
+            $withdrawal = Withdrawal::where('transaction_id', $transaction->id)->first();
+            if ($withdrawal) {
+                $withdrawal->update(['status' => $request->status]);
+            }
         }
-
-        $transaction->status = $status;
-        $transaction->save();
 
         return response()->json([
             'message' => 'Transaction status updated successfully.',
             'data' => [
-                'id' => $transaction->id,
                 'status' => $transaction->status,
             ],
         ]);
@@ -428,7 +431,7 @@ class AdminController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('type', 'like', "%{$search}%")
-                  ->orWhere('percentage', 'like', "%{$search}%");
+                    ->orWhere('percentage', 'like', "%{$search}%");
             });
         }
 
@@ -590,10 +593,10 @@ class AdminController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('amount', 'like', "%{$search}%")
-                  ->orWhere('date', 'like', "%{$search}%")
-                  ->orWhereHas('user', function ($q) use ($search) {
-                      $q->where('email', 'like', "%{$search}%");
-                  });
+                    ->orWhere('date', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($q) use ($search) {
+                        $q->where('email', 'like', "%{$search}%");
+                    });
             });
         }
 
