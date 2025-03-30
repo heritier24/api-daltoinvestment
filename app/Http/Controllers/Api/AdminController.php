@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CompanyInterest;
 use App\Models\CompanyWallet;
 use App\Models\Deposit;
 use App\Models\Interest;
@@ -411,5 +412,106 @@ class AdminController extends Controller
                 'created_at' => $wallet->created_at->format('d/m/Y H:i:s'),
             ],
         ], 201);
+    }
+
+    public function companyInterests(Request $request)
+    {
+        $perPage = $request->query('limit', 5);
+        $page = $request->query('page', 1);
+        $search = $request->query('search', '');
+
+        $query = CompanyInterest::orderBy('created_at', 'desc');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('type', 'like', "%{$search}%")
+                  ->orWhere('percentage', 'like', "%{$search}%");
+            });
+        }
+
+        $interests = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'interests' => $interests->map(function ($interest) {
+                    return [
+                        'id' => $interest->id,
+                        'type' => $interest->type,
+                        'percentage' => number_format($interest->percentage, 2, '.', ''),
+                        'status' => $interest->status,
+                        'created_at' => $interest->created_at->format('d/m/Y H:i:s'),
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $interests->currentPage(),
+                    'total_pages' => $interests->lastPage(),
+                    'total_items' => $interests->total(),
+                    'limit' => $interests->perPage(),
+                ],
+            ],
+        ]);
+    }
+
+    public function createCompanyInterest(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:daily_investment,referral_fee|unique:company_interests,type',
+            'percentage' => 'required|numeric|min:0|max:100',
+            'status' => 'required|in:active,inactive',
+        ]);
+
+        $interest = CompanyInterest::create([
+            'type' => $request->type,
+            'percentage' => $request->percentage,
+            'status' => $request->status,
+        ]);
+
+        return response()->json([
+            'message' => 'Company interest created successfully.',
+            'data' => [
+                'id' => $interest->id,
+                'type' => $interest->type,
+                'percentage' => number_format($interest->percentage, 2, '.', ''),
+                'status' => $interest->status,
+                'created_at' => $interest->created_at->format('d/m/Y H:i:s'),
+            ],
+        ], 201);
+    }
+
+    public function updateCompanyInterest(Request $request, $id)
+    {
+        $request->validate([
+            'type' => 'required|in:daily_investment,referral_fee|unique:company_interests,type,' . $id,
+            'percentage' => 'required|numeric|min:0|max:100',
+            'status' => 'required|in:active,inactive',
+        ]);
+
+        $interest = CompanyInterest::findOrFail($id);
+        $interest->update([
+            'type' => $request->type,
+            'percentage' => $request->percentage,
+            'status' => $request->status,
+        ]);
+
+        return response()->json([
+            'message' => 'Company interest updated successfully.',
+            'data' => [
+                'id' => $interest->id,
+                'type' => $interest->type,
+                'percentage' => number_format($interest->percentage, 2, '.', ''),
+                'status' => $interest->status,
+                'created_at' => $interest->created_at->format('d/m/Y H:i:s'),
+            ],
+        ]);
+    }
+
+    public function deleteCompanyInterest($id)
+    {
+        $interest = CompanyInterest::findOrFail($id);
+        $interest->delete();
+
+        return response()->json([
+            'message' => 'Company interest deleted successfully.',
+        ]);
     }
 }

@@ -52,6 +52,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('company-wallets', [AdminController::class, 'companyWallets']);
         Route::put('company-wallets/{id}', [AdminController::class, 'updateCompanyWallet']);
         Route::post('company-wallets', [AdminController::class, 'createCompanyWallet']);
+        Route::get('company-interests', [AdminController::class, 'companyInterests']);
+        Route::post('company-interests', [AdminController::class, 'createCompanyInterest']);
+        Route::put('company-interests/{id}', [AdminController::class, 'updateCompanyInterest']);
+        Route::delete('company-interests/{id}', [AdminController::class, 'deleteCompanyInterest']);
     });
 });
 
