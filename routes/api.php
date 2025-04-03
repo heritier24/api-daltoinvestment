@@ -36,7 +36,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/deposits/{id}/reference', [DepositController::class, 'updateReferenceNumber']);
     Route::get('/total-completed-deposits', [DepositController::class, 'getTotalCompletedDeposits']);
     Route::get('withdrawals', [WithdrawController::class, 'withdrawals']);
-    
+
+    Route::get('daily-rois', [WithdrawController::class, 'dailyROIs']);
+
+    Route::post('/request-withdrawal', [WithdrawController::class, 'requestWithdrawal']);
+
+    Route::get('/user-roi', [WithdrawController::class, 'getUserROI']);
+
+    Route::get('/user-wallet-amount', [WithdrawController::class, 'getWalletAmount']);
+
+    Route::get('/user-transactions', [WithdrawController::class, 'getUserTransactions']);
 
     // Admin routes
     Route::prefix('admin')->group(function () {
@@ -56,7 +65,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('company-interests', [AdminController::class, 'createCompanyInterest']);
         Route::put('company-interests/{id}', [AdminController::class, 'updateCompanyInterest']);
         Route::delete('company-interests/{id}', [AdminController::class, 'deleteCompanyInterest']);
-        Route::get('daily-rois', [AdminController::class, 'dailyROIs']);
+        Route::post('/generate-roi', [AdminController::class, 'generateROI']);
+        Route::get('/pending-withdrawals', [AdminController::class, 'getPendingWithdrawals']);
+        Route::post('/update-withdrawal-status/{withdrawalId}', [AdminController::class, 'updateWithdrawalStatus']);
     });
 });
 

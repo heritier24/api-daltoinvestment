@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\Withdrawal;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class AdminController extends Controller
@@ -28,7 +29,7 @@ class AdminController extends Controller
         $totalDeposits = Deposit::sum('amount');
         $totalCompletedDeposits = Deposit::where('status', 'completed')->sum('amount');
         $totalPendingDeposits = Deposit::where('status', 'pending')->sum('amount');
-        $totalRewarded = 5000.00; // Placeholder (implement this logic later)
+        $totalRewarded = 0.00; // Placeholder (implement this logic later)
 
         return response()->json([
             'data' => [
@@ -164,30 +165,35 @@ class AdminController extends Controller
     public function updateTransactionStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:completed,failed,pending', // Allow 'pending' as well
+            'status' => 'required|in:pending,completed,failed',
         ]);
 
-        $transaction = Transaction::findOrFail($id);
-        $transaction->update([
+        $deposit = Deposit::findOrFail($id);
+        $originalStatus = $deposit->status;
+        $deposit->update([
             'status' => $request->status,
         ]);
 
-        if ($transaction->type === 'deposit') {
-            $deposit = Deposit::where('transaction_id', $transaction->id)->first();
-            if ($deposit) {
-                $deposit->update(['status' => $request->status]);
-            }
-        } elseif ($transaction->type === 'withdrawal') {
-            $withdrawal = Withdrawal::where('transaction_id', $transaction->id)->first();
-            if ($withdrawal) {
-                $withdrawal->update(['status' => $request->status]);
-            }
+        // If the status is updated to 'completed', create a transaction
+        if ($request->status === 'completed' && $originalStatus !== 'completed') {
+            $transaction = Transaction::create([
+                'user_id' => $deposit->user_id,
+                'type' => 'deposit',
+                'amount' => $deposit->amount,
+                'status' => 'completed',
+                'network' => $deposit->network,
+                'reference_number' => $deposit->reference_number,
+                'date' => now()->format('Y-m-d'),
+            ]);
+
+            // Link the transaction to the deposit
+            $deposit->update(['transaction_id' => $transaction->id]);
         }
 
         return response()->json([
-            'message' => 'Transaction status updated successfully.',
+            'message' => 'Deposit status updated successfully.',
             'data' => [
-                'status' => $transaction->status,
+                'status' => $deposit->status,
             ],
         ]);
     }
@@ -197,11 +203,11 @@ class AdminController extends Controller
     {
         $perPage = $request->query('limit', 10);
         $page = $request->query('page', 1);
-        $status = $request->query('status');
+        $status = $request->query('status', 'all');
 
-        $query = Deposit::with('user')->orderBy('created_at', 'desc');
+        $query = Deposit::query()->with('user');
 
-        if ($status) {
+        if ($status !== 'all') {
             $query->where('status', $status);
         }
 
@@ -209,18 +215,19 @@ class AdminController extends Controller
 
         return response()->json([
             'data' => [
-                'deposits' => $deposits->map(function ($deposit) {
+                'member_deposits' => $deposits->map(function ($deposit) {
                     return [
                         'id' => $deposit->id,
-                        'date' => $deposit->created_at->format('Y-m-d'),
-                        'reference_number' => $deposit->reference_number,
-                        'network' => $deposit->network,
-                        'status' => $deposit->status,
+                        'user_id' => $deposit->user_id,
                         'amount' => number_format($deposit->amount, 2, '.', ''),
+                        'status' => $deposit->status,
+                        'created_at' => $deposit->created_at->format('d/m/Y H:i:s'),
+                        'reference_number' => $deposit->reference_number ?? 'N/A',
+                        'network' => $deposit->network ?? 'N/A',
                         'user' => [
-                            'id' => $deposit->user->id,
-                            'first_name' => $deposit->user->first_name,
-                            'last_name' => $deposit->user->last_name,
+                            'first_name' => $deposit->user->first_name ?? 'Unknown',
+                            'last_name' => $deposit->user->last_name ?? 'Unknown',
+                            'wallet_address' => $deposit->user->wallet_address ?? 'N/A', // Add wallet address
                         ],
                     ];
                 })->toArray(),
@@ -521,6 +528,93 @@ class AdminController extends Controller
         ]);
     }
 
+    public function generateROI(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user || $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
+        }
+
+        // Validate the date input
+        $request->validate([
+            'date' => 'required|date|before_or_equal:today',
+        ]);
+
+        $date = Carbon::parse($request->date)->toDateString();
+
+        // Check if ROI has already been generated for this date
+        $existingROI = DailyROI::whereDate('date', $date)->exists();
+        if ($existingROI) {
+            return response()->json([
+                'message' => 'ROI has already been generated for this date.',
+            ], 400);
+        }
+
+        // Fetch the active daily investment interest rate
+        $interest = CompanyInterest::where('type', 'daily_investment')
+            ->where('status', 'active')
+            ->first();
+
+        if (!$interest) {
+            return response()->json([
+                'message' => 'No active daily investment interest rate found.',
+            ], 400);
+        }
+
+        $dailyInterestRate = $interest->percentage / 100; // e.g., 1.5% -> 0.015
+
+        // Fetch all completed deposits
+        $deposits = Deposit::where('status', 'completed')->get();
+
+        if ($deposits->isEmpty()) {
+            return response()->json([
+                'message' => 'No completed deposits found to generate ROI.',
+            ], 400);
+        }
+
+        $roiGenerated = 0;
+        foreach ($deposits as $deposit) {
+            // Check if ROI for this deposit has already been calculated for this date
+            $existingROIForDeposit = DailyROI::where('deposit_id', $deposit->id)
+                ->where('date', $date)
+                ->exists();
+
+            if ($existingROIForDeposit) {
+                Log::info("ROI already calculated for deposit ID {$deposit->id} on {$date}.");
+                continue;
+            }
+
+            // Calculate the daily ROI
+            $dailyROI = $deposit->amount * $dailyInterestRate;
+
+            // Record the daily ROI
+            DailyROI::create([
+                'user_id' => $deposit->user_id,
+                'deposit_id' => $deposit->id,
+                'amount' => $dailyROI,
+                'date' => $date,
+                'created_at' => $date,
+                'updated_at' => $date,
+            ]);
+
+            // Optionally, add the ROI to the user's wallet balance
+            // $user = $deposit->user;
+            // $user->wallet_balance += $dailyROI;
+            // $user->save();
+
+            $roiGenerated++;
+            Log::info("Recorded daily ROI of {$dailyROI} for deposit ID {$deposit->id} on {$date}.");
+        }
+
+        return response()->json([
+            'message' => "ROI generated successfully for $roiGenerated deposits on $date.",
+        ], 201);
+    }
+
+    // Existing calculateDailyROI function (for scheduled tasks)
     public function calculateDailyROI()
     {
         // Skip if today is Saturday (6) or Sunday (0)
@@ -576,53 +670,106 @@ class AdminController extends Controller
         }
     }
 
-    public function dailyROIs(Request $request)
+    // Fetch pending withdrawals (admin only)
+    public function getPendingWithdrawals(Request $request)
     {
-        $perPage = $request->query('limit', 10);
-        $page = $request->query('page', 1);
-        $search = $request->query('search', '');
+        $user = Auth::user();
 
-        $user = auth()->user();
-        $query = DailyROI::with(['user', 'deposit'])->orderBy('date', 'desc');
-
-        // If the user is not an admin, restrict to their own ROIs
-        if ($user->role !== 'admin') {
-            $query->where('user_id', $user->id);
+        if (!$user || $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
         }
+
+        $search = $request->query('search');
+        $page = $request->query('page', 1);
+        $limit = $request->query('limit', 5);
+        $status = $request->query('status', 'pending');
+
+        $query = Withdrawal::with('user')
+            ->where('status', $status);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('amount', 'like', "%{$search}%")
-                    ->orWhere('date', 'like', "%{$search}%")
-                    ->orWhereHas('user', function ($q) use ($search) {
-                        $q->where('email', 'like', "%{$search}%");
-                    });
+                $q->whereHas('user', function ($q) use ($search) {
+                    $q->where('username', 'like', "%{$search}%");
+                })
+                ->orWhere('network', 'like', "%{$search}%");
             });
         }
 
-        $rois = $query->paginate($perPage, ['*'], 'page', $page);
+        $totalItems = $query->count();
+        $totalPages = max(1, ceil($totalItems / $limit));
+
+        $withdrawals = $query->skip(($page - 1) * $limit)
+            ->take($limit)
+            ->get()
+            ->map(function ($withdrawal) {
+                return [
+                    'id' => $withdrawal->id,
+                    'user' => [
+                        'username' => $withdrawal->user->username,
+                    ],
+                    'created_at' => $withdrawal->created_at->format('d/m/Y H:i:s'),
+                    'network' => $withdrawal->network,
+                    'amount' => number_format($withdrawal->amount, 2, '.', ''),
+                    'status' => $withdrawal->status,
+                ];
+            });
 
         return response()->json([
             'data' => [
-                'rois' => $rois->map(function ($roi) {
-                    return [
-                        'id' => $roi->id,
-                        'user_id' => $roi->user_id,
-                        'user_email' => $roi->user ? $roi->user->email : 'N/A',
-                        'deposit_id' => $roi->deposit_id,
-                        'deposit_amount' => $roi->deposit ? number_format($roi->deposit->amount, 2, '.', '') : 'N/A',
-                        'amount' => number_format($roi->amount, 2, '.', ''),
-                        'date' => $roi->date,
-                        'created_at' => $roi->created_at->format('d/m/Y H:i:s'),
-                    ];
-                })->toArray(),
+                'withdrawals' => $withdrawals,
                 'pagination' => [
-                    'current_page' => $rois->currentPage(),
-                    'total_pages' => $rois->lastPage(),
-                    'total_items' => $rois->total(),
-                    'limit' => $rois->perPage(),
+                    'current_page' => (int) $page,
+                    'total_pages' => $totalPages,
+                    'total_items' => $totalItems,
+                    'limit' => (int) $limit,
                 ],
             ],
+        ]);
+    }
+
+    // Update withdrawal status (admin only)
+    public function updateWithdrawalStatus(Request $request, $withdrawalId)
+    {
+        $user = Auth::user();
+
+        if (!$user || $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
+        }
+
+        $request->validate([
+            'status' => 'required|in:completed,failed',
+        ]);
+
+        $withdrawal = Withdrawal::findOrFail($withdrawalId);
+
+        if ($withdrawal->status !== 'pending') {
+            return response()->json([
+                'message' => 'This withdrawal request has already been processed.',
+            ], 400);
+        }
+
+        $withdrawal->status = $request->status;
+        $withdrawal->save();
+
+        // If status is 'completed', create a transaction record
+        if ($request->status === 'completed') {
+            Transaction::create([
+                'user_id' => $withdrawal->user_id,
+                'type' => 'withdraw',
+                'amount' => $withdrawal->amount,
+                'status' => 'completed',
+                'network' => $withdrawal->network,
+                'date' => now()->format('Y-m-d'),
+            ]);
+        }
+
+        return response()->json([
+            'message' => "Withdrawal request marked as {$request->status} successfully.",
         ]);
     }
 }
