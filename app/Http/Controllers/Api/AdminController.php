@@ -24,54 +24,94 @@ class AdminController extends Controller
         $this->middleware('role:admin');
     }
 
-    public function summary()
+    // Fetch admin summary data
+    public function getAdminSummary(Request $request)
     {
-        $totalDeposits = Deposit::sum('amount');
-        $totalCompletedDeposits = Deposit::where('status', 'completed')->sum('amount');
-        $totalPendingDeposits = Deposit::where('status', 'pending')->sum('amount');
-        $totalRewarded = 0.00; // Placeholder (implement this logic later)
+        $user = Auth::user();
+
+        if (!$user || $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
+        }
+
+        // Total completed deposits (from transactions table)
+        $totalCompletedDeposits = Transaction::where('type', 'deposit')
+            ->where('status', 'completed')
+            ->sum('amount');
+
+        // Total pending withdrawals (from withdrawals table)
+        $totalPendingWithdrawals = Withdrawal::where('status', 'pending')
+            ->sum('amount');
+
+        // Total withdrawn (from transactions table)
+        $totalWithdrawn = Transaction::where('type', 'withdraw')
+            ->where('status', 'completed')
+            ->sum('amount');
+
+        // Total transactions amount (for progress calculations)
+        $totalTransactions = Transaction::sum('amount');
 
         return response()->json([
             'data' => [
-                'total_deposits' => number_format($totalDeposits, 2, '.', ''),
                 'total_completed_deposits' => number_format($totalCompletedDeposits, 2, '.', ''),
-                'total_pending_deposits' => number_format($totalPendingDeposits, 2, '.', ''),
-                'total_rewarded' => number_format($totalRewarded, 2, '.', ''),
+                'total_pending_withdrawals' => number_format($totalPendingWithdrawals, 2, '.', ''),
+                'total_withdrawn' => number_format($totalWithdrawn, 2, '.', ''),
+                'total_transactions' => number_format($totalTransactions, 2, '.', ''),
             ],
         ]);
     }
 
-    public function transactions(Request $request)
+    // Fetch transaction history (admin only)
+    public function getTransactions(Request $request)
     {
-        $perPage = $request->query('limit', 10);
-        $page = $request->query('page', 1);
+        $user = Auth::user();
 
-        $transactions = Transaction::with('user')
-            ->orderBy('date', 'desc')
-            ->paginate($perPage, ['*'], 'page', $page);
+        if (!$user || $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
+        }
+
+        $page = $request->query('page', 1);
+        $limit = $request->query('limit', 10);
+        $status = $request->query('status');
+
+        $query = Transaction::with('user');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $totalItems = $query->count();
+        $totalPages = max(1, ceil($totalItems / $limit));
+
+        $transactions = $query->skip(($page - 1) * $limit)
+            ->take($limit)
+            ->get()
+            ->map(function ($transaction) {
+                return [
+                    'id' => $transaction->id,
+                    'type' => $transaction->type,
+                    'created_at' => $transaction->created_at->format('d/m/Y H:i:s'),
+                    'network' => $transaction->network,
+                    'status' => $transaction->status,
+                    'amount' => number_format($transaction->amount, 2, '.', ''),
+                    'user' => [
+                        'first_name' => $transaction->user->first_name,
+                        'last_name' => $transaction->user->last_name,
+                    ],
+                ];
+            });
 
         return response()->json([
             'data' => [
-                'transactions' => $transactions->map(function ($transaction) {
-                    return [
-                        'id' => $transaction->id,
-                        'date' => $transaction->date,
-                        'reference_number' => $transaction->reference_number,
-                        'network' => $transaction->network,
-                        'status' => $transaction->status,
-                        'amount' => number_format($transaction->amount, 2, '.', ''),
-                        'type' => $transaction->type,
-                        'user' => [
-                            'first_name' => $transaction->user->first_name,
-                            'last_name' => $transaction->user->last_name,
-                        ],
-                    ];
-                })->toArray(),
+                'transactions' => $transactions,
                 'pagination' => [
-                    'current_page' => $transactions->currentPage(),
-                    'total_pages' => $transactions->lastPage(),
-                    'total_items' => $transactions->total(),
-                    'limit' => $transactions->perPage(),
+                    'current_page' => (int) $page,
+                    'total_pages' => $totalPages,
+                    'total_items' => $totalItems,
+                    'limit' => (int) $limit,
                 ],
             ],
         ]);

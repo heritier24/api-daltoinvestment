@@ -49,8 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin routes
     Route::prefix('admin')->group(function () {
-        Route::get('summary', [AdminController::class, 'summary']);
-        Route::get('transactions', [AdminController::class, 'transactions']);
+        Route::get('/summary', [AdminController::class, 'getAdminSummary']);
+        Route::get('/transactions', [AdminController::class, 'getTransactions']);
         Route::get('withdrawals/pending', [AdminController::class, 'pendingWithdrawals']);
         Route::get('deposits/pending', [AdminController::class, 'pendingDepositRequests']);
         Route::get('withdrawals/pending-requests', [AdminController::class, 'pendingWithdrawalRequests']);
