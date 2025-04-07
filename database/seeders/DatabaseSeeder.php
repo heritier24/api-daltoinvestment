@@ -57,7 +57,7 @@ class DatabaseSeeder extends Seeder
                 'status' => fake()->randomElement(['pending', 'completed', 'failed']),
                 'network' => fake()->randomElement(['BSC', 'TRC20']),
                 'reference_number' => fake()->boolean(80) ? 'REF' . fake()->numberBetween(100, 999) : 'N/A',
-                'amount' => fake()->randomFloat(2, 100, 5000),
+                'amount' => '0',
                 'date' => fake()->dateTimeBetween('-1 month', 'now')->format('Y-m-d'),
             ]);
         });
