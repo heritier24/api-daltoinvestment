@@ -8,6 +8,7 @@ use App\Models\CompanyWallet;
 use App\Models\DailyROI;
 use App\Models\Deposit;
 use App\Models\Interest;
+use App\Models\ReferralFees;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Withdrawal;
@@ -204,37 +205,77 @@ class AdminController extends Controller
 
     public function updateTransactionStatus(Request $request, $id)
     {
-        $request->validate([
-            'status' => 'required|in:pending,completed,failed',
-        ]);
-
-        $deposit = Deposit::findOrFail($id);
-        $originalStatus = $deposit->status;
-        $deposit->update([
-            'status' => $request->status,
-        ]);
-
-        // If the status is updated to 'completed', create a transaction
-        if ($request->status === 'completed' && $originalStatus !== 'completed') {
-            $transaction = Transaction::create([
-                'user_id' => $deposit->user_id,
-                'type' => 'deposit',
-                'amount' => $deposit->amount,
-                'status' => 'completed',
-                'network' => $deposit->network,
-                'reference_number' => $deposit->reference_number,
-                'date' => now()->format('Y-m-d'),
+        try {
+            // Validate the request
+            $request->validate([
+                'status' => 'required|in:pending,completed,failed',
             ]);
 
-            // Link the transaction to the deposit
-            $deposit->update(['transaction_id' => $transaction->id]);
-        }
+            // Check if the user is an admin
+            $admin = Auth::user();
+            if (!$admin || $admin->role !== 'admin') {
+                return response()->json([
+                    'message' => 'Unauthorized. Admin access required.',
+                ], 403);
+            }
 
-        return response()->json([
-            'message' => 'Deposit status updated successfully.',
-            'data' => [
-                'status' => $deposit->status,
-            ],
+            // Find the deposit
+            $deposit = Deposit::findOrFail($id);
+            $originalStatus = $deposit->status;
+
+            // Update the deposit status
+            $deposit->status = $request->status;
+            $deposit->save();
+
+            // If the status is updated to 'completed' and was not previously 'completed'
+            if ($request->status === 'completed' && $originalStatus !== 'completed') {
+                // Create a transaction
+                $transaction = $this->createTransaction($deposit);
+
+                // Link the transaction to the deposit
+                // $deposit->transaction_id = $transaction->id;
+                // $deposit->save();
+
+                // Handle referral fee if the user was referred
+                // $this->handleReferralFee($deposit, $transaction);
+            }
+
+            return response()->json([
+                'message' => 'Deposit status updated successfully.',
+                'data' => [
+                    'status' => $deposit->status,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error updating transaction status: ' . $e->getMessage(), [
+                'deposit_id' => $id,
+                'status' => $request->status,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'An error occurred while updating the deposit status.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a transaction for the deposit.
+     *
+     * @param Deposit $deposit
+     * @return Transaction
+     */
+    private function createTransaction(Deposit $deposit): Transaction
+    {
+        return Transaction::create([
+            'user_id' => $deposit->user_id,
+            'type' => 'deposit',
+            'amount' => $deposit->amount,
+            'status' => 'completed',
+            'network' => $deposit->network,
+            'reference_number' => $deposit->reference_number,
+            'date' => now()->format('Y-m-d'),
         ]);
     }
 
@@ -245,7 +286,9 @@ class AdminController extends Controller
         $page = $request->query('page', 1);
         $status = $request->query('status', 'all');
 
-        $query = Deposit::query()->with('user');
+        $query = Deposit::query()
+            ->with('user')
+            ->orderBy('created_at', 'desc');
 
         if ($status !== 'all') {
             $query->where('status', $status);
@@ -723,7 +766,7 @@ class AdminController extends Controller
 
         $search = $request->query('search');
         $page = $request->query('page', 1);
-        $limit = $request->query('limit', 5);
+        $limit = $request->query('limit', 10);
         $status = $request->query('status', 'pending');
 
         $query = Withdrawal::with('user')
@@ -734,7 +777,7 @@ class AdminController extends Controller
                 $q->whereHas('user', function ($q) use ($search) {
                     $q->where('username', 'like', "%{$search}%");
                 })
-                ->orWhere('network', 'like', "%{$search}%");
+                    ->orWhere('network', 'like', "%{$search}%");
             });
         }
 
@@ -798,18 +841,62 @@ class AdminController extends Controller
 
         // If status is 'completed', create a transaction record
         if ($request->status === 'completed') {
-            Transaction::create([
-                'user_id' => $withdrawal->user_id,
-                'type' => 'withdraw',
-                'amount' => $withdrawal->amount,
-                'status' => 'completed',
-                'network' => $withdrawal->network,
-                'date' => now()->format('Y-m-d'),
-            ]);
+            $transaction = Transaction::where('user_id', $withdrawal->user_id)
+                ->where('type', 'withdraw')
+                ->where('amount', $withdrawal->amount)
+                ->where('status', 'pending')
+                ->where('network', $withdrawal->network)
+                ->first();
+
+            if ($transaction) {
+                $transaction->status = 'completed';
+                $transaction->save();
+            }
         }
 
         return response()->json([
             'message' => "Withdrawal request marked as {$request->status} successfully.",
+        ]);
+    }
+
+    public function withdrawals(Request $request)
+    {
+        // $user = $request->user();
+        $perPage = $request->query('limit', 5);
+        $page = $request->query('page', 1);
+        $search = $request->query('search', '');
+
+        $query = Withdrawal::orderBy('created_at', 'desc');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('network', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%"); // Using ID as a proxy for reference number
+            });
+        }
+
+        $withdrawals = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'withdrawals' => $withdrawals->map(function ($withdrawal) {
+                    return [
+                        'id' => $withdrawal->id,
+                        'date' => $withdrawal->created_at->format('d/m/Y'),
+                        'reference_number' => 'WDR-' . $withdrawal->id, // Generate a reference number
+                        'network' => $withdrawal->network,
+                        'networkaddress' => $withdrawal->user->networkaddress,
+                        'amount' => number_format($withdrawal->amount, 2, '.', '') . ' USDT',
+                        'status' => $withdrawal->status,
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $withdrawals->currentPage(),
+                    'total_pages' => $withdrawals->lastPage(),
+                    'total_items' => $withdrawals->total(),
+                    'limit' => $withdrawals->perPage(),
+                ],
+            ],
         ]);
     }
 }
