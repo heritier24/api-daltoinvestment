@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('user', [AuthenticationController::class, 'user']);
     Route::post('logout', [AuthenticationController::class, 'logout']);
     Route::put('profile', [AuthenticationController::class, 'updateProfile']);
+    Route::post('/user/update-password', [AuthenticationController::class, 'updatePassword']);
 
     // Routes for company wallets and deposits
     Route::get('/company-wallets', [DepositController::class, 'getCompanyWallet']);
@@ -68,9 +69,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/generate-roi', [AdminController::class, 'generateROI']);
         Route::get('/pending-withdrawals', [AdminController::class, 'getPendingWithdrawals']);
         Route::post('/update-withdrawal-status/{withdrawalId}', [AdminController::class, 'updateWithdrawalStatus']);
+        Route::get('withdrawals-admin', [AdminController::class, 'withdrawals']);
     });
 });
 
 Route::post('/register', [AuthenticationController::class, 'register']);
+Route::get('/networks', [DepositController::class, 'getNetworks']);
 
 Route::post('/login', [AuthenticationController::class, 'login']);
+Route::get('/user/referred-users', [AuthenticationController::class, 'getReferredUsers']);
+Route::post('/user/generate-referral-fees', [AuthenticationController::class, 'generateReferralFees']);
