@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\DepositController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\WithdrawController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthenticationController::class, 'logout']);
     Route::put('profile', [AuthenticationController::class, 'updateProfile']);
     Route::post('/user/update-password', [AuthenticationController::class, 'updatePassword']);
+    Route::post('/pay-membership-fee', [AuthenticationController::class, 'payMembershipFee']);
+    Route::get('/membership-status', [AuthenticationController::class, 'getMembershipStatus']);
 
     // Routes for company wallets and deposits
     Route::get('/company-wallets', [DepositController::class, 'getCompanyWallet']);
@@ -44,7 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/user-roi', [WithdrawController::class, 'getUserROI']);
 
-    Route::get('/user-wallet-amount', [WithdrawController::class, 'getWalletAmount']);
+    Route::get('/user-wallet-amount', [WithdrawController::class, 'getWalletBalance']);
 
     Route::get('/user-transactions', [WithdrawController::class, 'getUserTransactions']);
 
@@ -79,3 +82,8 @@ Route::get('/networks', [DepositController::class, 'getNetworks']);
 Route::post('/login', [AuthenticationController::class, 'login']);
 Route::get('/user/referred-users', [AuthenticationController::class, 'getReferredUsers']);
 Route::post('/user/generate-referral-fees', [AuthenticationController::class, 'generateReferralFees']);
+
+Route::post('/notifications', [NotificationController::class, 'create']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/{id}', [NotificationController::class, 'show']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
