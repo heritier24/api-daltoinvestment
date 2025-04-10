@@ -5,6 +5,8 @@ use Illuminate\Support\ServiceProvider;
 
 return [
 
+    'membership_fee' => env('MEMBERSHIP_FEE', 50.00),
+
     /*
     |--------------------------------------------------------------------------
     | Application Name
