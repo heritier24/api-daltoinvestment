@@ -842,10 +842,7 @@ class AdminController extends Controller
         // If status is 'completed', create a transaction record
         if ($request->status === 'completed') {
             $transaction = Transaction::where('user_id', $withdrawal->user_id)
-                ->where('type', 'withdraw')
-                ->where('amount', $withdrawal->amount)
                 ->where('status', 'pending')
-                ->where('network', $withdrawal->network)
                 ->first();
 
             if ($transaction) {

@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\Withdrawal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WithdrawController extends Controller
@@ -20,56 +21,42 @@ class WithdrawController extends Controller
      */
     public function withdrawals(Request $request)
     {
-        try {
-            $perPage = $request->query('limit', 5);
-            $page = $request->query('page', 1);
-            $search = $request->query('search', '');
+        $perPage = $request->query('limit', 5);
+        $page = $request->query('page', 1);
+        $search = $request->query('search', '');
 
-            $query = Transaction::where('user_id', Auth::id())
-                ->where('type', 'withdraw')
-                ->orderBy('created_at', 'desc');
+        $query = Withdrawal::where('user_id', Auth::id())->orderBy('created_at', 'desc');
 
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('network', 'like', "%{$search}%")
-                        ->orWhere('id', 'like', "%{$search}%");
-                });
-            }
-
-            $withdrawals = $query->paginate($perPage, ['*'], 'page', $page);
-
-            return response()->json([
-                'data' => [
-                    'withdrawals' => $withdrawals->map(function ($withdrawal) {
-                        return [
-                            'id' => $withdrawal->id,
-                            'date' => $withdrawal->created_at->format('d/m/Y'),
-                            'referenceNumber' => 'WDR-' . $withdrawal->id, // Updated to camelCase
-                            'network' => $withdrawal->network,
-                            'networkAddress' => $withdrawal->user->networkaddress ?? 'N/A', // Updated to camelCase
-                            'amount' => number_format($withdrawal->amount, 2, '.', '') . ' USDT',
-                            'status' => $withdrawal->status,
-                        ];
-                    })->toArray(),
-                    'pagination' => [
-                        'currentPage' => $withdrawals->currentPage(), // Updated to camelCase
-                        'totalPages' => $withdrawals->lastPage(), // Updated to camelCase
-                        'totalItems' => $withdrawals->total(), // Updated to camelCase
-                        'limit' => $withdrawals->perPage(),
-                    ],
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching withdrawals: ' . $e->getMessage(), [
-                'userId' => Auth::id(), // Updated to camelCase
-                'exception' => $e,
-            ]);
-
-            return response()->json([
-                'message' => 'An error occurred while fetching withdrawals.',
-                'error' => $e->getMessage(),
-            ], 500);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('network', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%"); // Using ID as a proxy for reference number
+            });
         }
+
+        $withdrawals = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => [
+                'withdrawals' => $withdrawals->map(function ($withdrawal) {
+                    return [
+                        'id' => $withdrawal->id,
+                        'date' => $withdrawal->created_at->format('d/m/Y'),
+                        'reference_number' => 'WDR-' . $withdrawal->id, // Generate a reference number
+                        'network' => $withdrawal->network,
+                        'networkaddress' => $withdrawal->user->networkaddress,
+                        'amount' => number_format($withdrawal->amount, 2, '.', '') . ' USDT',
+                        'status' => $withdrawal->status,
+                    ];
+                })->toArray(),
+                'pagination' => [
+                    'current_page' => $withdrawals->currentPage(),
+                    'total_pages' => $withdrawals->lastPage(),
+                    'total_items' => $withdrawals->total(),
+                    'limit' => $withdrawals->perPage(),
+                ],
+            ],
+        ]);
     }
 
     /**
@@ -134,6 +121,72 @@ class WithdrawController extends Controller
 
             return response()->json([
                 'message' => 'An error occurred while fetching daily ROIs.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Fetch the user's wallet balance with detailed breakdown.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getWalletBalance()
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'user_client') {
+                return response()->json([
+                    'message' => 'Unauthorized. User client access required.',
+                ], 403);
+            }
+
+            // Fetch total ROI profit
+            $totalROI = $this->getTotalROI($user->id);
+            $totalROI = (float) $totalROI;
+
+            // Fetch total referral fees
+            $totalReferralFees = ReferralFees::where('referrer_id', $user->id)
+                ->sum('fee_amount');
+            $totalReferralFees = (float) $totalReferralFees;
+
+            // Fetch total withdrawn amount (status: completed)
+            $totalWithdrawn = Transaction::where('user_id', $user->id)
+                ->where('type', 'withdrawal') // Corrected 'withdraw' to 'withdrawal' to match the type used in requestWithdrawal
+                ->where('status', 'completed')
+                ->sum('amount');
+            $totalWithdrawn = (float) $totalWithdrawn;
+
+            // Calculate wallet balance
+            $walletBalance = ($totalROI + $totalReferralFees) - $totalWithdrawn;
+            $walletBalance = max(0, $walletBalance); // Ensure balance is not negative
+
+            // Log intermediate values for debugging
+            Log::info('Calculating wallet balance for user', [
+                'user_id' => $user->id,
+                'total_roi' => $totalROI,
+                'total_referral_fees' => $totalReferralFees,
+                'total_withdrawn' => $totalWithdrawn,
+                'wallet_balance' => $walletBalance,
+            ]);
+
+            return response()->json([
+                'data' => [
+                    'wallet_balance' => number_format($walletBalance, 2, '.', ''),
+                    'total_roi' => number_format($totalROI, 2, '.', ''),
+                    'total_referral_fees' => number_format($totalReferralFees, 2, '.', ''),
+                    'total_withdrawn' => number_format($totalWithdrawn, 2, '.', ''),
+                ],
+                'message' => 'Wallet balance fetched successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching wallet balance: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'An error occurred while fetching wallet balance.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -219,20 +272,28 @@ class WithdrawController extends Controller
     public function getTotalROI($userId)
     {
         try {
-            $totalDailyROI = DailyROI::where('user_id', $userId) // Updated to camelCase
+            $totalDailyROI = DailyROI::where('user_id', $userId)
                 ->sum('amount');
 
             $totalDailyROI = (float) $totalDailyROI;
 
+            if ($totalDailyROI < 0) {
+                Log::warning('Total ROI is negative', [
+                    'user_id' => $userId,
+                    'total_roi' => $totalDailyROI,
+                ]);
+                $totalDailyROI = 0.0; // Prevent negative ROI
+            }
+
             Log::info('Total ROI calculated', [
-                'userId' => $userId, // Updated to camelCase
-                'totalROI' => $totalDailyROI, // Updated to camelCase
+                'user_id' => $userId,
+                'total_roi' => $totalDailyROI,
             ]);
 
             return $totalDailyROI;
         } catch (\Exception $e) {
             Log::error('Error calculating total ROI: ' . $e->getMessage(), [
-                'userId' => $userId, // Updated to camelCase
+                'user_id' => $userId,
                 'exception' => $e,
             ]);
             return 0.0;
@@ -240,7 +301,7 @@ class WithdrawController extends Controller
     }
 
     /**
-     * Request a withdrawal.
+     * Request a withdrawal for the authenticated user.
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -257,49 +318,53 @@ class WithdrawController extends Controller
 
             // Validate the request
             $request->validate([
-                'amount' => 'required|numeric|min:10|max:1000000',
-                'network' => 'required',
+                'amount' => 'required|numeric|min:10',
+                'network' => 'required|string',
+                'wallet_address' => 'required|string|max:255',
             ]);
 
-            // Calculate wallet balance
-            $totalROI = $this->getTotalROI($user->id);
-            $totalWithdrawn = Transaction::where('user_id', $user->id) // Updated to camelCase
-                ->where('type', 'withdraw')
-                ->where('status', 'completed')
-                ->sum('amount');
-            $totalReferralFees = ReferralFees::where('referrer_id', $user->id) // Updated to camelCase
-                ->sum('fee_amount'); // Updated to camelCase
-            $deduction = (float) $totalROI + (float) $totalReferralFees;
-            $walletBalance = max(0, (float) $deduction - $totalWithdrawn);
+            // Fetch wallet balance
+            $walletBalanceResponse = $this->getWalletBalance();
+            if ($walletBalanceResponse->getStatusCode() !== 200) {
+                return $walletBalanceResponse; // Return error if fetching balance fails
+            }
 
-            // Validate withdrawal amount against wallet balance
+            $walletBalanceData = $walletBalanceResponse->getData(true)['data'];
+            $walletBalance = (float) $walletBalanceData['wallet_balance'];
+
             if ($request->amount > $walletBalance) {
                 return response()->json([
-                    'message' => "Insufficient wallet balance. Available: " . number_format($walletBalance, 2, '.', '') . " USDT",
+                    'message' => "Amount exceeds wallet balance ($walletBalance USDT).",
                 ], 400);
             }
 
-            // Check for pending withdrawals
-            $pendingWithdrawals = Transaction::where('user_id', $user->id) // Updated to camelCase
-                ->where('type', 'withdraw')
+            // Check if the user has a pending withdrawal
+            $existingWithdrawal = Transaction::where('user_id', $user->id)
+                ->where('type', 'withdrawal')
                 ->where('status', 'pending')
-                ->count();
-            if ($pendingWithdrawals > 0) {
+                ->first();
+
+            if ($existingWithdrawal) {
                 return response()->json([
-                    'message' => 'You already have a pending withdrawal request. Please wait for it to be processed.',
+                    'message' => 'You have a pending withdrawal being processed. Please wait for it to complete.',
                 ], 400);
             }
+
+            // Begin transaction to ensure data consistency
+            DB::beginTransaction();
 
             // Create the withdrawal transaction
             $transaction = Transaction::create([
-                'user_id' => $user->id, // Updated to camelCase
-                'type' => 'withdraw',
+                'user_id' => $user->id,
+                'type' => 'withdrawal',
                 'amount' => $request->amount,
-                'status' => 'pending',
                 'network' => $request->network,
-                'reference_number' => 'WDR-' . time() . '-' . $user->id, // Updated to camelCase
-                'date' => now()->format('Y-m-d H:i:s'), // Updated to camelCase
+                'wallet_address' => $request->wallet_address,
+                'status' => 'pending',
+                'reference_number' => 'WDR-' . time() . '-' . $user->id,
+                'date' => now()->format('Y-m-d H:i:s'),
             ]);
+
             // Create the withdrawal record
             Withdrawal::create([
                 'user_id' => $user->id,
@@ -308,24 +373,32 @@ class WithdrawController extends Controller
                 'network' => $request->network,
             ]);
 
+            // Update the user's profile with the network and wallet address
+            $user->networkaddress = $request->network;
+            $user->usdt_wallet = $request->wallet_address;
+            $user->save();
+
+            DB::commit();
+
+            Log::info('Withdrawal request submitted', [
+                'user_id' => $user->id,
+                'transaction_id' => $transaction->id,
+                'amount' => $request->amount,
+            ]);
+
             return response()->json([
                 'message' => 'Withdrawal request submitted successfully. It is now pending approval.',
-                'data' => [
-                    'id' => $transaction->id,
-                    'amount' => number_format($transaction->amount, 2, '.', ''),
-                    'network' => $transaction->network,
-                    'status' => $transaction->status,
-                    'referenceNumber' => $transaction->referenceNumber, // Updated to camelCase
-                ],
             ], 201);
         } catch (\Exception $e) {
+            DB::rollBack();
+
             Log::error('Error requesting withdrawal: ' . $e->getMessage(), [
-                'user_id' => Auth::id(), // Updated to camelCase
+                'user_id' => Auth::id(),
                 'exception' => $e,
             ]);
 
             return response()->json([
-                'message' => 'An error occurred while requesting withdrawal.',
+                'message' => 'An error occurred while requesting the withdrawal.',
                 'error' => $e->getMessage(),
             ], 500);
         }

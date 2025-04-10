@@ -12,4 +12,19 @@ class ReferralFees extends Model
     protected $table = 'referral_fees';
 
     protected $fillable = ['referrer_id', 'referred_user_id', 'transaction_id', 'deposit_amount', 'fee_amount'];
+
+    public function referrer()
+    {
+        return $this->belongsTo(User::class, 'referrer_id');
+    }
+
+    public function referredUser()
+    {
+        return $this->belongsTo(User::class, 'referred_user_id');
+    }
+
+    public function transaction()
+    {
+        return $this->belongsTo(Transaction::class, 'transaction_id');
+    }
 }

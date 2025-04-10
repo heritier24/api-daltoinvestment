@@ -68,4 +68,11 @@ class User extends Authenticatable
     {
         return $this->hasMany(ReferralFees::class, 'referred_user_id');
     }
+
+    public function notifications()
+    {
+        return $this->belongsToMany(Notifications::class, 'notification_user')
+                    ->withPivot('is_read', 'read_at')
+                    ->withTimestamps();
+    }
 }

@@ -51,6 +51,13 @@ class DepositController extends Controller
     // POST /api/deposits
     public function createDeposit(Request $request)
     {
+        $user = Auth::user();
+        // Check if the user has paid the membership fee
+        if (!$user->membership_fee_paid) {
+            return response()->json([
+                'message' => 'You must pay the membership fee before making a deposit.',
+            ], 403);
+        }
         $request->validate([
             'network' => 'required|string|exists:company_wallets,network',
             'amount' => 'required|numeric|min:0.01',
