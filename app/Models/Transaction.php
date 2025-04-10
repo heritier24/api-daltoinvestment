@@ -26,8 +26,8 @@ class Transaction extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function referralFee()
+    public function referralFees()
     {
-        return $this->hasOne(ReferralFees::class);
+        return $this->hasMany(ReferralFees::class, 'transaction_id');
     }
 }
