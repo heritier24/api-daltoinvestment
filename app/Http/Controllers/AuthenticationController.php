@@ -4,11 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginFormRequest;
 use App\Http\Requests\RegisterFormRequest;
-use App\Models\CompanyInterest;
 use App\Models\CompanyWallet;
 use App\Models\MembershipFees;
 use App\Models\ReferralFees;
-use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -319,80 +317,80 @@ class AuthenticationController extends Controller
     }
 
     /**
- * Generate referral fees for a referred user's completed deposits.
- *
- * @param Request $request
- * @return \Illuminate\Http\JsonResponse
- */
-public function generateReferralFees(Request $request)
-{
-    try {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'referred_user_id' => 'required|exists:users,id',
-        ]);
-
-        $authUser = Auth::user();
-        // if (!$authUser || $authUser->id != $request->user_id) {
-        //     return response()->json([
-        //         'message' => 'Unauthorized.',
-        //     ], 403);
-        // }
-
-        $referredUser = User::findOrFail($request->referred_user_id);
-        // if ($referredUser->referred_by != Auth::id()) {
-        //     return response()->json([
-        //         'message' => 'This user was not referred by you.',
-        //     ], 403);
-        // }
-
-        // Fetch completed deposits without referral fees
-        $deposits = $referredUser->transactions()
-            ->where('type', 'deposit')
-            ->where('status', 'completed')
-            ->whereDoesntHave('referralFees', function ($query) use ($authUser) {
-                $query->where('referrer_id', Auth::id());
-            })
-            ->get();
-
-        if ($deposits->isEmpty()) {
-            return response()->json([
-                'message' => 'No eligible deposits found to generate referral fees.',
-            ], 400);
-        }
-
-        $totalFeesGenerated = 0;
-        $referralFeePercentage = 0.05; // Example: 5% referral fee
-
-        foreach ($deposits as $deposit) {
-            $feeAmount = $deposit->amount * $referralFeePercentage;
-            ReferralFees::create([
-                'referrer_id' => $request->user_id,
-                'referred_user_id' => $referredUser->id,
-                'transaction_id' => $deposit->id,
-                'deposit_amount' => $deposit->amount,
-                'fee_amount' => $feeAmount,
+     * Generate referral fees for a referred user's completed deposits.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function generateReferralFees(Request $request)
+    {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:users,id',
+                'referred_user_id' => 'required|exists:users,id',
             ]);
-            $totalFeesGenerated += $feeAmount;
+
+            $authUser = Auth::user();
+            // if (!$authUser || $authUser->id != $request->user_id) {
+            //     return response()->json([
+            //         'message' => 'Unauthorized.',
+            //     ], 403);
+            // }
+
+            $referredUser = User::findOrFail($request->referred_user_id);
+            // if ($referredUser->referred_by != Auth::id()) {
+            //     return response()->json([
+            //         'message' => 'This user was not referred by you.',
+            //     ], 403);
+            // }
+
+            // Fetch completed deposits without referral fees
+            $deposits = $referredUser->transactions()
+                ->where('type', 'deposit')
+                ->where('status', 'completed')
+                ->whereDoesntHave('referralFees', function ($query) use ($authUser) {
+                    $query->where('referrer_id', Auth::id());
+                })
+                ->get();
+
+            if ($deposits->isEmpty()) {
+                return response()->json([
+                    'message' => 'No eligible deposits found to generate referral fees.',
+                ], 400);
+            }
+
+            $totalFeesGenerated = 0;
+            $referralFeePercentage = 0.05; // Example: 5% referral fee
+
+            foreach ($deposits as $deposit) {
+                $feeAmount = $deposit->amount * $referralFeePercentage;
+                ReferralFees::create([
+                    'referrer_id' => $request->user_id,
+                    'referred_user_id' => $referredUser->id,
+                    'transaction_id' => $deposit->id,
+                    'deposit_amount' => $deposit->amount,
+                    'fee_amount' => $feeAmount,
+                ]);
+                $totalFeesGenerated += $feeAmount;
+            }
+
+            return response()->json([
+                'message' => 'Referral fees generated successfully.',
+                'total_fees_generated' => number_format($totalFeesGenerated, 2, '.', ''),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error generating referral fees: ' . $e->getMessage(), [
+                'user_id' => $request->user_id,
+                'referred_user_id' => $request->referred_user_id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'An error occurred while generating referral fees.',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Referral fees generated successfully.',
-            'total_fees_generated' => number_format($totalFeesGenerated, 2, '.', ''),
-        ]);
-    } catch (\Exception $e) {
-        Log::error('Error generating referral fees: ' . $e->getMessage(), [
-            'user_id' => $request->user_id,
-            'referred_user_id' => $request->referred_user_id,
-            'exception' => $e,
-        ]);
-
-        return response()->json([
-            'message' => 'An error occurred while generating referral fees.',
-            'error' => $e->getMessage(),
-        ], 500);
     }
-}
 
     /**
      * Check the user's membership status and profile details.
@@ -457,8 +455,8 @@ public function generateReferralFees(Request $request)
             // Validate the request
             $request->validate([
                 'amount' => 'required|numeric|in:' . config('app.membership_fee', 50.00),
-                'network' => 'required|string', // We'll validate against available networks in the frontend
-                'wallet_address' => 'required|string|max:255',
+                'network' => '', // We'll validate against available networks in the frontend
+                'company_wallet_address' => 'required|string|max:255',
             ]);
 
             // Create the membership fee transaction
@@ -466,15 +464,13 @@ public function generateReferralFees(Request $request)
                 'user_id' => $user->id,
                 'amount' => $request->amount,
                 'network' => $request->network,
-                'wallet_address' => $request->wallet_address,
+                'wallet_address' => $request->company_wallet_address,
                 'status' => 'pending',
                 'reference_number' => 'MEM-' . time() . '-' . $user->id,
             ]);
 
             // Update the user's membership status and profile
             $user->membership_fee_paid = true;
-            $user->networkaddress = $request->network; // Update network
-            $user->usdt_wallet = $request->wallet_address; // Update wallet address
             $user->save();
 
             // Update the membership fee status to completed (for simplicity)

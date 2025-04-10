@@ -6,6 +6,7 @@ use App\Models\CompanyWallet;
 use App\Models\Deposit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class DepositController extends Controller
 {
@@ -23,6 +24,42 @@ class DepositController extends Controller
             'data' => $networks,
         ], 200);
     }
+
+    /**
+ * Fetch the company wallet address for a given network.
+ *
+ * @param string $network
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function getWalletAddress($network)
+{
+    try {
+        $companyWallet = CompanyWallet::where('network', $network)->first();
+
+        if (!$companyWallet) {
+            return response()->json([
+                'message' => 'No company wallet found for the selected network.',
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => [
+                'wallet_address' => $companyWallet->address,
+            ],
+            'message' => 'Company wallet address fetched successfully.',
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error fetching company wallet address: ' . $e->getMessage(), [
+            'network' => $network,
+            'exception' => $e,
+        ]);
+
+        return response()->json([
+            'message' => 'An error occurred while fetching the company wallet address.',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
 
     // GET /api/company-wallets?network={network}
     public function getCompanyWallet(Request $request)

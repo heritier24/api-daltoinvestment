@@ -35,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes for company wallets and deposits
     Route::get('/company-wallets', [DepositController::class, 'getCompanyWallet']);
     Route::get('/company-wallets/networks', [DepositController::class, 'getNetworks']);
+    Route::get('/company-wallets/{network}', [DepositController::class, 'getWalletAddress']);
     Route::post('/deposits', [DepositController::class, 'createDeposit']);
     Route::get('/transactions', [DepositController::class, 'getUserTransactions']);
     Route::put('/deposits/{id}/reference', [DepositController::class, 'updateReferenceNumber']);
