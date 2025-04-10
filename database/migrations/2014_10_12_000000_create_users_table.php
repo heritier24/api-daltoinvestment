@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('usdt_wallet')->nullable();
             $table->unsignedBigInteger('referred_by')->nullable();
             $table->foreign('referred_by')->references('id')->on('users')->onDelete('set null');
+            $table->boolean('membership_fee_paid')->default(false);
             $table->rememberToken();
             $table->timestamps();
         });
