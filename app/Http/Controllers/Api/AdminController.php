@@ -791,7 +791,7 @@ class AdminController extends Controller
                 return [
                     'id' => $withdrawal->id,
                     'user' => [
-                        'username' => $withdrawal->user->username,
+                        'username' => $withdrawal->user->first_name . ' ' . $withdrawal->user->last_name,
                     ],
                     'created_at' => $withdrawal->created_at->format('d/m/Y H:i:s'),
                     'network' => $withdrawal->network,
@@ -858,12 +858,13 @@ class AdminController extends Controller
 
     public function withdrawals(Request $request)
     {
-        // $user = $request->user();
         $perPage = $request->query('limit', 5);
         $page = $request->query('page', 1);
         $search = $request->query('search', '');
 
-        $query = Withdrawal::orderBy('created_at', 'desc');
+        // Include the user relationship to access first_name and last_name
+        $query = Withdrawal::with('user')
+            ->orderBy('created_at', 'desc');
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -877,14 +878,18 @@ class AdminController extends Controller
         return response()->json([
             'data' => [
                 'withdrawals' => $withdrawals->map(function ($withdrawal) {
+                    // Concatenate first_name and last_name to create full_name
+                    $fullName = trim($withdrawal->user->first_name . ' ' . $withdrawal->user->last_name);
+
                     return [
                         'id' => $withdrawal->id,
                         'date' => $withdrawal->created_at->format('d/m/Y'),
                         'reference_number' => 'WDR-' . $withdrawal->id, // Generate a reference number
                         'network' => $withdrawal->network,
-                        'networkaddress' => $withdrawal->user->networkaddress,
+                        'networkaddress' => $withdrawal->user->usdt_wallet,
                         'amount' => number_format($withdrawal->amount, 2, '.', '') . ' USDT',
                         'status' => $withdrawal->status,
+                        'full_name' => $fullName ?: 'N/A', // Fallback to 'N/A' if full_name is empty
                     ];
                 })->toArray(),
                 'pagination' => [

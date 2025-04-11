@@ -25,7 +25,10 @@ class WithdrawController extends Controller
         $page = $request->query('page', 1);
         $search = $request->query('search', '');
 
-        $query = Withdrawal::where('user_id', Auth::id())->orderBy('created_at', 'desc');
+        // Include the user relationship to access first_name and last_name
+        $query = Withdrawal::with('user')
+            ->where('user_id', Auth::id())
+            ->orderBy('created_at', 'desc');
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -39,6 +42,9 @@ class WithdrawController extends Controller
         return response()->json([
             'data' => [
                 'withdrawals' => $withdrawals->map(function ($withdrawal) {
+                    // Concatenate first_name and last_name to create full_name
+                    $fullName = trim($withdrawal->user->first_name . ' ' . $withdrawal->user->last_name);
+
                     return [
                         'id' => $withdrawal->id,
                         'date' => $withdrawal->created_at->format('d/m/Y'),
@@ -47,6 +53,7 @@ class WithdrawController extends Controller
                         'networkaddress' => $withdrawal->user->networkaddress,
                         'amount' => number_format($withdrawal->amount, 2, '.', '') . ' USDT',
                         'status' => $withdrawal->status,
+                        'full_name' => $fullName ?: 'N/A', // Fallback to 'N/A' if full_name is empty
                     ];
                 })->toArray(),
                 'pagination' => [
