@@ -46,7 +46,7 @@ class AdminController extends Controller
             ->sum('amount');
 
         // Total withdrawn (from transactions table)
-        $totalWithdrawn = Transaction::where('type', 'withdraw')
+        $totalWithdrawn = Transaction::where('type', 'withdrawal')
             ->where('status', 'completed')
             ->sum('amount');
 

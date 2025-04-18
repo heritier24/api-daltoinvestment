@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Withdrawal;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -20,13 +21,15 @@ class DatabaseSeeder extends Seeder
     {
         // Seed company wallets for each network
         $wallets = [
-            ['network' => 'BSC', 'address' => 'BSC9876zyxw5432vuts1098'],
-            ['network' => 'TRC20', 'address' => 'TRC20klmn5678opqr9012abcd'],
+            ['network' => 'Binance Chain (BEP-20)', 'address' => '0x1e668ecf81123958bcb90ecea0501f2b883597c4'],
+            ['network' => 'TRON (TRC-20)', 'address' => 'TUaNwA2sZjR4XRAYc5UnaqbkhseVoW122W'],
         ];
 
         foreach ($wallets as $wallet) {
             CompanyWallet::create($wallet);
         }
+
+        $password = "password123";
 
         User::factory()->create([
             'email' => 'admin@gmail.com',
@@ -34,42 +37,9 @@ class DatabaseSeeder extends Seeder
             'first_name' => 'Tamba',
             'last_name' => 'Ganza',
             'phone_number' => '0788519633',
+            'password' => Hash::make($password),
             'usdt_wallet' => 'TWallet123',
             'promocode' => 'ADMIN123',
         ]);
-
-        // Create deposits for each user
-        User::all()->each(function ($user) {
-            Deposit::factory()->create([
-                'user_id' => $user->id,
-                'status' => fake()->randomElement(['pending', 'completed', 'failed']),
-                'network' => fake()->randomElement(['TRON', 'Ethereum', 'Binance Smart Chain']),
-                'reference_number' => fake()->boolean(80) ? 'REF' . fake()->numberBetween(100, 999) : 'N/A',
-                'amount' => fake()->randomFloat(2, 100, 5000),
-            ]);
-        });
-
-        // Create transactions for each user
-        User::all()->each(function ($user) {
-            Transaction::factory()->create([
-                'user_id' => $user->id,
-                'type' => fake()->randomElement(['deposit', 'withdrawal']),
-                'status' => fake()->randomElement(['pending', 'completed', 'failed']),
-                'network' => fake()->randomElement(['BSC', 'TRC20']),
-                'reference_number' => fake()->boolean(80) ? 'REF' . fake()->numberBetween(100, 999) : 'N/A',
-                'amount' => '0',
-                'date' => fake()->dateTimeBetween('-1 month', 'now')->format('Y-m-d'),
-            ]);
-        });
-
-        // Create withdrawals for each user
-        User::all()->each(function ($user) {
-            Withdrawal::factory()->create([
-                'user_id' => $user->id,
-                'status' => fake()->randomElement(['pending', 'completed', 'failed']),
-                'network' => fake()->randomElement(['TRON', 'Ethereum', 'Binance Smart Chain']),
-                'amount' => fake()->randomFloat(2, 100, 5000),
-            ]);
-        });
     }
 }
