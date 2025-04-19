@@ -85,6 +85,8 @@ Route::get('/user/referred-users', [AuthenticationController::class, 'getReferre
 Route::post('/user/generate-referral-fees', [AuthenticationController::class, 'generateReferralFees']);
 
 Route::post('/notifications', [NotificationController::class, 'create']);
-    Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::get('/notifications/{id}', [NotificationController::class, 'show']);
-    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+Route::get('/notifications', [NotificationController::class, 'index']);
+Route::get('/notifications/{id}', [NotificationController::class, 'show']);
+Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+Route::post('/notifications/{id}/toggle-read', [NotificationController::class, 'toggleReadStatus']);

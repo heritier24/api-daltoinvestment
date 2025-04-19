@@ -71,8 +71,8 @@ class User extends Authenticatable
 
     public function notifications()
     {
-        return $this->belongsToMany(Notifications::class, 'notification_user')
-                    ->withPivot('is_read', 'read_at')
-                    ->withTimestamps();
+        return $this->belongsToMany(Notifications::class, 'notification_user', 'user_id', 'notification_id')
+            ->withPivot('is_read', 'read_at')
+            ->withTimestamps();
     }
 }
