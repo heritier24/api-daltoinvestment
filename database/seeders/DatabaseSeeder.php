@@ -20,14 +20,14 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Seed company wallets for each network
-        $wallets = [
-            ['network' => 'Binance Chain (BEP-20)', 'address' => '0x1e668ecf81123958bcb90ecea0501f2b883597c4'],
-            ['network' => 'TRON (TRC-20)', 'address' => 'TUaNwA2sZjR4XRAYc5UnaqbkhseVoW122W'],
-        ];
+        // $wallets = [
+        //     ['network' => 'Binance Chain (BEP-20)', 'address' => '0x1e668ecf81123958bcb90ecea0501f2b883597c4'],
+        //     ['network' => 'TRON (TRC-20)', 'address' => 'TUaNwA2sZjR4XRAYc5UnaqbkhseVoW122W'],
+        // ];
 
-        foreach ($wallets as $wallet) {
-            CompanyWallet::create($wallet);
-        }
+        // foreach ($wallets as $wallet) {
+        //     CompanyWallet::create($wallet);
+        // }
 
         $password = "password123";
 
