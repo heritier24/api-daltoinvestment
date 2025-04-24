@@ -28,7 +28,7 @@ class RegisterFormRequest extends FormRequest
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'phone_number' => ['required', 'string', 'max:14', 'unique:users'],
+            'phone_number' => ['required', 'string', 'unique:users'],
             'password' => ['required', 'string', 'min:8'], // password_confirmation field required
             'promocode' => ['nullable', 'string', 'max:50', 'exists:users,promocode'], // Validate promocode if provided
             'role' => ['nullable', Rule::in(['user_client', 'admin', 'super_admin'])], // Optional, defaults to user_client
