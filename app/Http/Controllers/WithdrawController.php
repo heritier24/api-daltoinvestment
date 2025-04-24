@@ -138,27 +138,27 @@ class WithdrawController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getWalletBalance()
+    public function getWalletBalance(Request $request)
     {
         try {
-            $user = Auth::user();
-            if (!$user || $user->role !== 'user_client') {
-                return response()->json([
-                    'message' => 'Unauthorized. User client access required.',
-                ], 403);
-            }
+            // $user = Auth::user();
+            // if (!$user || $user->role !== 'user_client') {
+            //     return response()->json([
+            //         'message' => 'Unauthorized. User client access required.',
+            //     ], 403);
+            // }
 
             // Fetch total ROI profit
-            $totalROI = $this->getTotalROI($user->id);
+            $totalROI = $this->getTotalROI($request->user_id);
             $totalROI = (float) $totalROI;
 
             // Fetch total referral fees
-            $totalReferralFees = ReferralFees::where('referrer_id', $user->id)
+            $totalReferralFees = ReferralFees::where('referrer_id', $request->user_id)
                 ->sum('fee_amount');
             $totalReferralFees = (float) $totalReferralFees;
 
             // Fetch total withdrawn amount (status: completed)
-            $totalWithdrawn = Transaction::where('user_id', $user->id)
+            $totalWithdrawn = Transaction::where('user_id', $request->user_id)
                 ->where('type', 'withdrawal') // Corrected 'withdraw' to 'withdrawal' to match the type used in requestWithdrawal
                 ->where('status', 'completed')
                 ->sum('amount');
@@ -170,7 +170,7 @@ class WithdrawController extends Controller
 
             // Log intermediate values for debugging
             Log::info('Calculating wallet balance for user', [
-                'user_id' => $user->id,
+                'user_id' => $request->user_id,
                 'total_roi' => $totalROI,
                 'total_referral_fees' => $totalReferralFees,
                 'total_withdrawn' => $totalWithdrawn,
@@ -331,7 +331,7 @@ class WithdrawController extends Controller
             ]);
 
             // Fetch wallet balance
-            $walletBalanceResponse = $this->getWalletBalance();
+            $walletBalanceResponse = $this->getWalletBalance($request->user_id);
             if ($walletBalanceResponse->getStatusCode() !== 200) {
                 return $walletBalanceResponse; // Return error if fetching balance fails
             }
