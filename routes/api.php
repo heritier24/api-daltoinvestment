@@ -48,7 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/user-roi', [WithdrawController::class, 'getUserROI']);
 
-    Route::get('/user-wallet-amount', [WithdrawController::class, 'getWalletBalance']);
+    Route::get('/user-wallet-amount/{userId}', [WithdrawController::class, 'getWalletBalance']);
 
     Route::get('/user-transactions', [WithdrawController::class, 'getUserTransactions']);
 

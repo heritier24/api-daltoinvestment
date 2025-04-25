@@ -138,7 +138,7 @@ class WithdrawController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getWalletBalance(Request $request)
+    public function getWalletBalance(int $userId)
     {
         try {
             // $user = Auth::user();
@@ -149,16 +149,16 @@ class WithdrawController extends Controller
             // }
 
             // Fetch total ROI profit
-            $totalROI = $this->getTotalROI($request->user_id);
+            $totalROI = $this->getTotalROI($userId);
             $totalROI = (float) $totalROI;
 
             // Fetch total referral fees
-            $totalReferralFees = ReferralFees::where('referrer_id', $request->user_id)
+            $totalReferralFees = ReferralFees::where('referrer_id', $userId)
                 ->sum('fee_amount');
             $totalReferralFees = (float) $totalReferralFees;
 
             // Fetch total withdrawn amount (status: completed)
-            $totalWithdrawn = Transaction::where('user_id', $request->user_id)
+            $totalWithdrawn = Transaction::where('user_id', $userId)
                 ->where('type', 'withdrawal') // Corrected 'withdraw' to 'withdrawal' to match the type used in requestWithdrawal
                 ->where('status', 'completed')
                 ->sum('amount');
@@ -170,7 +170,7 @@ class WithdrawController extends Controller
 
             // Log intermediate values for debugging
             Log::info('Calculating wallet balance for user', [
-                'user_id' => $request->user_id,
+                'user_id' => $userId,
                 'total_roi' => $totalROI,
                 'total_referral_fees' => $totalReferralFees,
                 'total_withdrawn' => $totalWithdrawn,
@@ -316,12 +316,12 @@ class WithdrawController extends Controller
     public function requestWithdrawal(Request $request)
     {
         try {
-            $user = Auth::user();
-            if (!$user || $user->role !== 'user_client') {
-                return response()->json([
-                    'message' => 'Unauthorized. User client access required.',
-                ], 403);
-            }
+            $user = $request->user_id;
+            // if (!$user || $user->role !== 'user_client') {
+            //     return response()->json([
+            //         'message' => 'Unauthorized. User client access required.',
+            //     ], 403);
+            // }
 
             // Validate the request
             $request->validate([
@@ -346,7 +346,7 @@ class WithdrawController extends Controller
             }
 
             // Check if the user has a pending withdrawal
-            $existingWithdrawal = Transaction::where('user_id', $user->id)
+            $existingWithdrawal = Transaction::where('user_id', $request->user_id)
                 ->where('type', 'withdrawal')
                 ->where('status', 'pending')
                 ->first();
@@ -362,19 +362,19 @@ class WithdrawController extends Controller
 
             // Create the withdrawal transaction
             $transaction = Transaction::create([
-                'user_id' => $user->id,
+                'user_id' => $request->user_id,
                 'type' => 'withdrawal',
                 'amount' => $request->amount,
                 'network' => $request->network,
                 'wallet_address' => $request->wallet_address,
                 'status' => 'pending',
-                'reference_number' => 'WDR-' . time() . '-' . $user->id,
+                'reference_number' => 'WDR-' . time() . '-' . $request->user_id,
                 'date' => now()->format('Y-m-d H:i:s'),
             ]);
 
             // Create the withdrawal record
             Withdrawal::create([
-                'user_id' => $user->id,
+                'user_id' => $request->use_id,
                 'amount' => $request->amount,
                 'status' => 'pending',
                 'network' => $request->network,
@@ -388,7 +388,7 @@ class WithdrawController extends Controller
             DB::commit();
 
             Log::info('Withdrawal request submitted', [
-                'user_id' => $user->id,
+                'user_id' => $request->user_id,
                 'transaction_id' => $transaction->id,
                 'amount' => $request->amount,
             ]);
@@ -400,7 +400,7 @@ class WithdrawController extends Controller
             DB::rollBack();
 
             Log::error('Error requesting withdrawal: ' . $e->getMessage(), [
-                'user_id' => Auth::id(),
+                'user_id' => $request->user_id,
                 'exception' => $e,
             ]);
 
