@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DailyROI;
 use App\Models\ReferralFees;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\Withdrawal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -374,11 +375,13 @@ class WithdrawController extends Controller
 
             // Create the withdrawal record
             Withdrawal::create([
-                'user_id' => $request->use_id,
+                'user_id' => $request->user_id,
                 'amount' => $request->amount,
                 'status' => 'pending',
                 'network' => $request->network,
             ]);
+
+            $user = User::where('id', $request->user_id)->first();
 
             // Update the user's profile with the network and wallet address
             $user->networkaddress = $request->network;
