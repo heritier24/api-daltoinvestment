@@ -82,26 +82,12 @@ class NotificationController extends Controller
     public function index(Request $request)
     {
         try {
-            $authUser = Auth::user();
-            // if (!$authUser) {
-            //     return response()->json([
-            //         'message' => 'Unauthorized.',
-            //     ], 401);
-            // }
-
             $userId = $request->query('user_id');
             if (!$userId) {
                 return response()->json([
                     'message' => 'User ID is required.',
                 ], 400);
             }
-
-            // Security check: Ensure the requested user_id matches the authenticated user
-            // if ($authUser->id != $userId) {
-            //     return response()->json([
-            //         'message' => 'Unauthorized. You can only fetch notifications for your own user ID.',
-            //     ], 403);
-            // }
 
             $user = User::findOrFail($userId);
             $perPage = $request->query('per_page', 10);
@@ -113,7 +99,9 @@ class NotificationController extends Controller
             // Transform the image path to a full URL for each notification
             $notifications->getCollection()->transform(function ($notification) {
                 if ($notification->image) {
-                    $notification->image =  env('APP_URL') . '/' . Storage::url($notification->image);
+                    // Generate the storage URL and prepend the APP_URL
+                    $imagePath = Storage::url($notification->image);
+                    $notification->image = rtrim(env('APP_URL'), '/') . $imagePath;
                 }
                 return $notification;
             });
@@ -151,26 +139,12 @@ class NotificationController extends Controller
     public function show(Request $request, $id)
     {
         try {
-            $authUser = Auth::user();
-            // if (!$authUser) {
-            //     return response()->json([
-            //         'message' => 'Unauthorized.',
-            //     ], 401);
-            // }
-
             $userId = $request->query('user_id');
             if (!$userId) {
                 return response()->json([
                     'message' => 'User ID is required.',
                 ], 400);
             }
-
-            // Security check: Ensure the requested user_id matches the authenticated user
-            // if ($authUser->id != $userId) {
-            //     return response()->json([
-            //         'message' => 'Unauthorized. You can only fetch notifications for your own user ID.',
-            //     ], 403);
-            // }
 
             $user = User::findOrFail($userId);
             $notification = Notifications::with(['sender', 'users' => function ($query) use ($userId) {
@@ -202,7 +176,8 @@ class NotificationController extends Controller
 
             // Transform the image path to a full URL
             if ($notification->image) {
-                $notificationData['image'] = env('APP_URL') . '/' . Storage::url(env('APP_URL') . '/' .$notification->image);
+                $imagePath = Storage::url($notification->image);
+                $notificationData['image'] = rtrim(env('APP_URL'), '/') . $imagePath;
             }
 
             return response()->json([
