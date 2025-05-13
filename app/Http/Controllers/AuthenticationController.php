@@ -446,7 +446,7 @@ class AuthenticationController extends Controller
 
             // Validate the request
             $request->validate([
-                'amount' => 'required|numeric|in:' . config('app.membership_fee', 50.00),
+                'amount' => 'required',
                 'network' => 'required', // We'll validate against available networks in the frontend
                 'company_wallet_address' => 'required|string|max:255',
             ]);
